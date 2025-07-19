@@ -1,34 +1,35 @@
-﻿using Microsoft.Win32;
+﻿using CieReader.Utils;
+using Microsoft.Win32;
 using System.Diagnostics;
 
 namespace CieReader.Service
 {
     public class TrayAppContext : ApplicationContext
     {
+        private ConfigReader configReader;
         private NotifyIcon trayIcon;
         private WebSocketServer webSocketServer;
         private Reader reader;
 
         public TrayAppContext()
         {
-            // Crea l'icona di sistema (tray icon)
             trayIcon = new NotifyIcon()
             {
-                Icon = SystemIcons.Application, // puoi sostituirlo con un file .ico
+                Icon = new Icon("Resources/icon.ico"),
                 ContextMenuStrip = new ContextMenuStrip(),
                 Visible = true,
                 Text = "NFC Tray App"
             };
 
-            // Aggiunge un'opzione "Esci" nel menu            
-            trayIcon.ContextMenuStrip.Items.Add("Impostazioni", null, OnSettings);
-            trayIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
+            // Aggiunge un'opzione "Esci" nel menu                       
             trayIcon.ContextMenuStrip.Items.Add("Esci", null, OnExit);
 
             // (Facoltativo) Registrati per l'avvio automatico
             SetStartup(true);
 
-            webSocketServer = new WebSocketServer();           
+            configReader = new ConfigReader();
+
+            webSocketServer = new WebSocketServer(configReader.Configuration.WebSocketConfig);           
 
             reader = new Reader();
             reader.OnCardRead += OnCardRead;
@@ -40,17 +41,11 @@ namespace CieReader.Service
             Application.Exit();
         }
 
-        private void OnSettings(object sender, EventArgs e)
-        {
-            Debug.WriteLine("Click on \'Impostazioni\' button!");
-        }
-
         protected void OnCardRead(object sender, string message)
         {
             Debug.WriteLine($"Carta Letta: {message}");
             webSocketServer.BroadcastMessageAsync(message);
         }
-
         private void SetStartup(bool enable)
         {
             string appName = "Cie_Reader";

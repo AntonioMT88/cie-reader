@@ -11,9 +11,9 @@ namespace CieReader.Service
 
         private readonly ConcurrentDictionary<Guid, WebSocket> _connectedSockets = new();
 
-        public WebSocketServer()
+        public WebSocketServer(WebSocketConfig webSocketConfig)
         {
-            _ = StartServer("localhost", 8080);
+            _ = StartServer(webSocketConfig.Host, webSocketConfig.Port);
         }
         public async Task StartServer(string ipAddress, int port)
         {

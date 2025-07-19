@@ -38,7 +38,6 @@ namespace CieReader.Service
             {
 
                 Debug.WriteLine("Lettura in corso...");                
-                // siamo all'interno dell'event handler del form, quindi per aggiornare la label devo eseguire il Message Loop
                 Application.DoEvents();
 
                 bool connected = false;
@@ -72,14 +71,11 @@ namespace CieReader.Service
                 // Verifico se il chip è SAC
                 if (a.IsSAC())
                 {
-
                     string can = null;
                     var context = SynchronizationContext.Current;
 
                     if (context == null)
                     {
-                        // Se il contesto non esiste, probabilmente non sei nel thread UI
-                        // e non puoi mostrare direttamente il dialog senza un form
                         NotificationBalloon.ShowBalloon("Errore", "Impossibile mostrare il dialogo CAN in questo contesto.");
                         return;
                     }
@@ -105,9 +101,10 @@ namespace CieReader.Service
                 }
                 else
                 {
-                    // Per fare BAC dovrei fare la scansione dell'MRZ e applicare l'OCR all'imagine ottenuta. In questo caso ritorno errore.
-                    // a.BAC(MRZbirthDate, expiryDate, passNumber)
-                    Debug.WriteLine("BAC non disponibile");
+                    // Il chip non supporta PACE (caso raro).
+                    // Per usare BAC dovremmo acquisire l'MRZ leggendo la carta fisica con un OCR.
+                    // Questo flusso non è implementato in questa versione.
+                    NotificationBalloon.ShowBalloon("Errore", "Carta non supportata: il chip non supporta il protocollo di autenticazione PACE.");
                     return;
                 }
 
@@ -122,16 +119,11 @@ namespace CieReader.Service
                 // Disconnessione dal chip
                 sc.Disconnect(Disposition.SCARD_RESET_CARD);
 
-                //Debug.WriteLine($"Carta Letta: {readDocument.ToString()}");
                 OnCardRead?.Invoke(this, readDocument.ToJsonString());
-
             });
 
             // Avvio il monitoraggio dei lettori
             Task.Run(() => StartReaderMonitoring());
-
-
-            //sc.StartMonitoring(true);           
         }
 
         ~Reader()
@@ -193,8 +185,7 @@ namespace CieReader.Service
                         }
                     }
                     else if (rc == SCardError.Timeout)
-                    {
-                        // Timeout = nessun cambiamento, normale
+                    {                     
                         continue;
                     }
                     else
@@ -213,15 +204,14 @@ namespace CieReader.Service
 
                         Debug.WriteLine($"❌ Errore irreversibile: {SCardHelper.StringifyError(rc)}");
                         Debug.WriteLine("🔄 Riavvio del contesto...");
-                        break; // Uscita dal ciclo interno → ricrea contesto
+                        break; 
                     }
 
                     Thread.Sleep(500);
                 }
 
-                Thread.Sleep(1000); // breve pausa prima di riprovare a creare contesto
+                Thread.Sleep(1000);
             }
         }
-
     }
 }

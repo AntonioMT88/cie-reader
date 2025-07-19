@@ -10,7 +10,6 @@ namespace CieReader.View
     {
         private TextBox inputBox;
         public string CanCode => inputBox.Text;
-
         public CanPromptDialog()
         {
             Text = "Inserisci il codice CAN";
