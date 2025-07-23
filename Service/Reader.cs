@@ -213,5 +213,11 @@ namespace CieReader.Service
                 Thread.Sleep(1000);
             }
         }
+
+        public void StopReaderMonitoring()
+        {
+            Debug.WriteLine("Disposing Reader...");
+            sc.StopMonitoring();
+        }
     }
 }

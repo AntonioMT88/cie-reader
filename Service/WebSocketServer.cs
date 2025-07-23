@@ -1,6 +1,8 @@
-﻿using System.Collections.Concurrent;
+﻿using Newtonsoft.Json.Linq;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
@@ -10,6 +12,7 @@ namespace CieReader.Service
     {
 
         private readonly ConcurrentDictionary<Guid, WebSocket> _connectedSockets = new();
+        private bool _cancelling = false;
 
         public WebSocketServer(WebSocketConfig webSocketConfig)
         {
@@ -23,7 +26,7 @@ namespace CieReader.Service
 
             Console.WriteLine("Server started. Waiting for connections...");
 
-            while (true)
+            while (!_cancelling)
             {
                 HttpListenerContext context = await listener.GetContextAsync();
                 if (context.Request.IsWebSocketRequest)
@@ -38,14 +41,23 @@ namespace CieReader.Service
             }
         }
 
+        public async void StopServer()
+        {
+            Debug.WriteLine("Stopping websocket...");
+            _cancelling = true;
+            foreach (var (id, socket) in _connectedSockets)
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server shutting down", CancellationToken.None);
+            }
+        }
+
         private async Task ProcessWebSocketRequest(HttpListenerContext context)
         {
             HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
             WebSocket socket = webSocketContext.WebSocket;
 
             Guid socketId = Guid.NewGuid();
-            _connectedSockets.TryAdd(socketId, socket);
-
+            _connectedSockets.TryAdd(socketId, socket);           
             // Handle incoming messages
             byte[] buffer = new byte[1024];
             try

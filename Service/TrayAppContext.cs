@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace CieReader.Service
 {
-    public class TrayAppContext : ApplicationContext
+    public class TrayAppContext : ApplicationContext, IDisposable
     {
         private ConfigReader configReader;
         private NotifyIcon trayIcon;
@@ -33,12 +33,23 @@ namespace CieReader.Service
 
             reader = new Reader();
             reader.OnCardRead += OnCardRead;
-        }
+        }      
 
         private void OnExit(object sender, EventArgs e)
         {
             trayIcon.Visible = false;
+            Dispose(true);
             Application.Exit();
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {                
+                webSocketServer?.StopServer();                
+                reader?.StopReaderMonitoring();
+                trayIcon?.Dispose();
+            }
         }
 
         protected void OnCardRead(object sender, string message)
