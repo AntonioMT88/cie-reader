@@ -12,19 +12,15 @@ namespace CieReader
         [JsonProperty("websocket")]
         public WebSocketConfig WebSocketConfig { get; set;}
 
-        public Configuration()
-        {
-            WebSocketConfig = new WebSocketConfig();
-            WebSocketConfig.Host = "localhost";
-            WebSocketConfig.Port = 8080;
-        }
+        public Configuration() {}
        
-    }
+    }    
 
     public class WebSocketConfig
     {
         public string Host { get; set; }
-        public int Port { get; set; }        
+        public int Port { get; set; }    
+        public string WsApiKey { get; set; }
     }
 
 }

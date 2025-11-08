@@ -13,9 +13,11 @@ namespace CieReader.Service
 
         private readonly ConcurrentDictionary<Guid, WebSocket> _connectedSockets = new();
         private bool _cancelling = false;
+        private string apiKey;
 
         public WebSocketServer(WebSocketConfig webSocketConfig)
         {
+            this.apiKey = webSocketConfig.WsApiKey;
             _ = StartServer(webSocketConfig.Host, webSocketConfig.Port);
         }
         public async Task StartServer(string ipAddress, int port)
@@ -24,7 +26,7 @@ namespace CieReader.Service
             listener.Prefixes.Add($"http://{ipAddress}:{port}/");
             listener.Start();
 
-            Console.WriteLine("Server started. Waiting for connections...");
+            Debug.WriteLine("Server started. Waiting for connections...");
 
             while (!_cancelling)
             {
@@ -53,40 +55,48 @@ namespace CieReader.Service
 
         private async Task ProcessWebSocketRequest(HttpListenerContext context)
         {
+            string[] ApiKey = context.Request.Headers.GetValues("X-API-Key");
             HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
-            WebSocket socket = webSocketContext.WebSocket;
+            
+            if (ApiKey?.Length != 0 && ApiKey?[0] == apiKey)
+            {                               
+                WebSocket socket = webSocketContext.WebSocket;
 
-            Guid socketId = Guid.NewGuid();
-            _connectedSockets.TryAdd(socketId, socket);           
-            // Handle incoming messages
-            byte[] buffer = new byte[1024];
-            try
-            {
-                while (socket.State == WebSocketState.Open)
+                Guid socketId = Guid.NewGuid();
+                _connectedSockets.TryAdd(socketId, socket);
+                // Handle incoming messages
+                byte[] buffer = new byte[1024];
+                try
                 {
-                    WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    if (result.MessageType == WebSocketMessageType.Text)
+                    while (socket.State == WebSocketState.Open)
                     {
-                        string receivedMessage = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Debug.WriteLine($"Received message: {receivedMessage}");
+                        WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        if (result.MessageType == WebSocketMessageType.Text)
+                        {
+                            string receivedMessage = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
+                            Debug.WriteLine($"Received message: {receivedMessage}");
 
-                        // Echo back the received message
-                        await socket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), WebSocketMessageType.Text, true, CancellationToken.None);
-                    }
-                    else if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                            // Echo back the received message
+                            await socket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), WebSocketMessageType.Text, true, CancellationToken.None);
+                        }
+                        else if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                        }
                     }
                 }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.ToString());
+                }
+                finally
+                {
+                    _connectedSockets.TryRemove(socketId, out _);
+                    Debug.WriteLine($"Connection closed: {socketId}");
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
-            finally
-            {
-                _connectedSockets.TryRemove(socketId, out _);
-                Console.WriteLine($"Connection closed: {socketId}");
+            else {
+                await webSocketContext.WebSocket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Unauthorized", CancellationToken.None);                              
             }
         }
 
