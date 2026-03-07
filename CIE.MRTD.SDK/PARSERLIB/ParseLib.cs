@@ -1,87 +1,34 @@
-﻿using System;
-using System.Collections.Generic;
-using CIE.MRTD.SDK.EAC;
-using CSJ2K.Util;
+﻿using CIE.MRTD.SDK.EAC;
 using CSJ2K;
 using System.Xml.Serialization;
 using Nancy.Json;
+using CieReader.Utils;
+using System.Diagnostics;
 
 namespace CIE.MRTD.SDK.PARSERLIB
-{
-
-    /* Classe di utilità per manipolazione di array di byte*/
-    static class ArrayUtils
-    {
-        //Esegue lo slice di un array
-        public static T[] SubArray<T>(this T[] data, int index, int length)
-        {
-            T[] result = new T[length];
-            Array.Copy(data, index, result, 0, length);
-            return result;
-        }
-
-        //array vuoto
-        public static readonly int[] Empty = new int[0];
-
-        //Localizza le occorenze di "candidate" in "self"
-        public static int[] Locate(this byte[] self, byte[] candidate)
-        {
-            if (IsEmptyLocate(self, candidate))
-                return Empty;
-
-            var list = new List<int>();
-
-            for (int i = 0; i < self.Length; i++)
-            {
-                if (!IsMatch(self, i, candidate))
-                    continue;
-
-                list.Add(i);
-            }
-
-            return list.Count == 0 ? Empty : list.ToArray();
-        }
-
-        /* Verifica il mach tra array e candidate nella posizione array[position] */
-        static bool IsMatch(byte[] array, int position, byte[] candidate)
-        {
-            if (candidate.Length > (array.Length - position))
-                return false;
-
-            for (int i = 0; i < candidate.Length; i++)
-                if (array[position + i] != candidate[i])
-                    return false;
-
-            return true;
-        }
-
-        /* Controllo, se è vero allora sicuramente non ci sono occorrenze */
-        static bool IsEmptyLocate(byte[] array, byte[] candidate)
-        {
-            return array == null
-                || candidate == null
-                || array.Length == 0
-                || candidate.Length == 0
-                || candidate.Length > array.Length;
-        }
-    }
-
-    
+{        
     /*Classe che astrae le informazioni di una CIE, ha i metodi per la decodifica dell'icao e gli attributi delle
      informazioni presenti sulla carta, sono riportate le sole informazioni presenti sulla card di prova*/
     public class C_CIE
     {
-
-        /* Le chiavi del tag icao */
-        public static readonly byte[] KEY_FULL_NAME = new byte[]{ 0x5F, 0x0E };
-        public static readonly byte[] KEY_BIRTH_ADDRESS = new byte[] { 0x5F, 0x11 };
-        public static readonly byte[] KEY_ADDRESS = new byte[] { 0x5F, 0x42 };
-        public static readonly byte[] KEY_CF = new byte[] { 0x5F, 0x10 };
-        public static readonly byte[] KEY_MRZ = new byte[] { 0x5F, 0x1F };
-        public static readonly byte[] KEY_DATE_ISSUE = new byte[] { 0x5F, 0x26 };
-        public static readonly byte[] KEY_DATE_EXPIRE = new byte[] { 0x5F, 0x24 };
-        public static readonly byte[] KEY_BIRTH_DATE = new byte[] { 0x5F, 0x57 };
-
+        private CIE.MRTD.SDK.EAC.EAC eac;
+        public String firstName;
+        public String lastName;
+        public String birthCity;       
+        public String birthProv;
+        public String birthDate;
+        public String address;
+        public String prov;
+        public String cf;
+        public String mrz;
+        public String dateIssue;
+        public String dateExpire;
+        public String sex;
+        public String city;
+        public String nationality;
+        public String documentNumber;
+        public String authority;
+        public byte[] cie_jpg2k_image;
 
         /* questo pattern è l'inizio del file jpeg2000 presente nella card, si cerca questo pattern per poi
          * scartare i primi bytes*/
@@ -89,8 +36,108 @@ namespace CIE.MRTD.SDK.PARSERLIB
             0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A, 0x00, 0x00, 0x00, 0x14, 0x66, 0x74,
             0x79, 0x70, 0x6A, 0x70, 0x32, 0x20, 0x00, 0x00, 0x00, 0x00, 0x6A, 0x70,
             0x32, 0x20, 0x00, 0x00, 0x00, 0x2D, 0x6A, 0x70, 0x32, 0x68, 0x00, 0x00,
-            0x00, 0x16, 0x69, 0x68, 0x64, 0x72 };
+            0x00, 0x16, 0x69, 0x68, 0x64, 0x72 };       
 
+        /*Costruttore vuoto*/
+        public C_CIE() { }
+
+        /* Costruttore, riempie i campi dell'oggetto interrogando l'oggetto EAC */
+        public C_CIE(CIE.MRTD.SDK.EAC.EAC eac)
+        {
+            var dg1 = eac.ReadDG(DG.DG1);           // MRZ
+            var dg2 = eac.ReadDG(DG.DG2);           // Foto
+            var dg11 = eac.ReadDG(DG.DG11);         // Dati personali come luogo di nascita, indirizzo, cf, nome e cognome, ecc..
+            var dg12 = eac.ReadDG(DG.DG12);         // Dati di emissione e scadenza della carta            
+            var sod = eac.ReadDG(DG.SOD);           // Firma digitale dei dati, non è necessario per il parsing ma è utile per verificare l'integrità dei dati letti
+
+            firstName = ICAOGetValueFromKey(CieTags.KEY_FIRST_NAME, dg11);
+            lastName = ICAOGetValueFromKey(CieTags.KEY_LAST_NAME, dg11);
+            birthDate = ICAOGetValueFromKey(CieTags.KEY_BIRTH_DATE, dg11);
+            sex = ICAOGetValueFromKey(CieTags.KEY_SEX, dg11);
+            nationality = ICAOGetValueFromKey(CieTags.KEY_NATIONALITY, dg11);            
+            address = ICAOGetValueFromKey(CieTags.KEY_ADDRESS, dg11);
+            cf = ICAOGetValueFromKey(CieTags.KEY_CF, dg11);
+            documentNumber = ICAOGetValueFromKey(CieTags.KEY_DOCUMENT_NUMBER, dg12);
+            dateIssue = ICAOGetValueFromKey(CieTags.KEY_DATE_ISSUE, dg12);
+            dateExpire = ICAOGetValueFromKey(CieTags.KEY_DATE_EXPIRE, dg12);
+            authority = ICAOGetValueFromKey(CieTags.KEY_AUTHORITY, dg12);
+            mrz = ICAOGetValueFromKey(CieTags.KEY_MRZ, dg1);
+
+            if (firstName == null || lastName == null)
+            {
+                String[] s1 = parseFullName(ICAOGetValueFromKey(CieTags.KEY_FULL_NAME, dg11));
+                lastName = s1[0];
+                firstName = s1[1];                
+            }
+            if (birthDate == null)
+            {
+                String[] s2 = parseAddress(ICAOGetValueFromKey(CieTags.KEY_BIRTH_ADDRESS, dg11));
+                birthCity = s2[0];
+                birthProv = s2[1];
+            }
+            if (address == null || city == null || prov == null)
+            {
+                String[] s3 = parseAddress(ICAOGetValueFromKey(CieTags.KEY_ADDRESS, dg11));
+                address = s3[0];
+                city = s3[1];
+                prov = s3[2];
+            }
+            if (dateIssue == null)
+            {
+                string rawDateIssue = ICAOGetValueFromKey(CieTags.KEY_DATE_ISSUE, dg12);
+                dateIssue = getParsedData(rawDateIssue);
+            }
+            else 
+            {
+                dateIssue = getParsedData(dateIssue);
+            }
+            if (birthDate == null)
+            {
+                string[] lines = mrz.Split('\n');
+                string rawDate = lines[0].Substring(30, 6);
+                string yearPrefix = rawDate.Substring(0, 2).CompareTo("50") >= 0 ? "19" : "20";
+                birthDate = rawDate.Substring(4, 2) + "/" + rawDate.Substring(2, 2) + "/" + yearPrefix + rawDate.Substring(0, 2);
+            }
+            else
+            {
+                birthDate = getParsedData(birthDate);
+            }
+            if (dateExpire == null)
+            {
+                string rawDateExpire = ICAOGetValueFromKey(CieTags.KEY_DATE_EXPIRE, dg12);
+                string[] lines = mrz.Split('\n');
+                //if (lines.Length > 0 && lines[0].Length >= 43)
+                //{
+                string expiryRaw = lines[0].Substring(38, 6); // YYMMDD
+                string yearPrefix = expiryRaw.Substring(0, 2).CompareTo("50") >= 0 ? "19" : "20";                    
+                dateExpire = expiryRaw.Substring(4,2) + "/" + expiryRaw.Substring(2, 2) + "/" + yearPrefix + expiryRaw.Substring(0,2); 
+                //}
+            }
+            else
+            { 
+                dateExpire = getParsedData(dateExpire);
+            }
+            if (sex == null)
+            {
+                string[] lines = mrz.Split('\n');
+                sex = lines[0].Substring(37, 1);
+            }
+            if (nationality == null)
+            {
+                string[] lines = mrz.Split('\n');
+                nationality = lines[0].Substring(2, 3);
+            }
+            if (documentNumber == null)
+            {
+                string[] lines = mrz.Split('\n');
+                documentNumber = lines[0].Substring(5, 9);
+            }
+
+            cie_jpg2k_image = Image_retrive(dg2);          
+            
+            Debug.WriteLine("Parsing completato, dati estratti: %s", this.ToJsonString());
+
+        }        
         /*Estrae i byte dell'immagine jpeg2000 da un array di bytes usando il suo magic_number*/
         public static Byte[] Image_retrive(Byte[] blob)
         {
@@ -123,103 +170,26 @@ namespace CIE.MRTD.SDK.PARSERLIB
 
         /* Parsing di un indirizzo dividendolo in Via (eventuale), Città e provincia */
         static String[] parseAddress(String s)
-        {           
+        {
 
             return s.Split(new[] { "<" }, StringSplitOptions.None); ;
-        }
-
-        /* Costruttore, riempie i campi dell'oggetto interrogando l'oggetto EAC */
-        public C_CIE(CIE.MRTD.SDK.EAC.EAC eac)
+        }       
+        /*Converte l'array di byte codificato in jpeg2000 in una bitmap*/
+        public Bitmap ret_cie_bitmap()
         {
-            var dg14 = eac.ReadDG(DG.DG14); //Si assicura che sia stato chiamato il dg14 almeno una volta
-
-            var dg11 = eac.ReadDG(DG.DG11);
-
-            String[] s1 = parseFullName( ICAOGetValueFromKey(KEY_FULL_NAME, dg11) );
-            firstName = s1[0];
-            lastName = s1[1];
-
-            String[] s2 = parseAddress(ICAOGetValueFromKey(KEY_BIRTH_ADDRESS, dg11));
-            birthCity = s2[0];
-            birthProv = s2[1];
-
-            String[] s3 = parseAddress(ICAOGetValueFromKey(KEY_ADDRESS, dg11));
-            address = s3[0];
-            city = s3[1];
-            prov = s3[2];
-
-            cf = ICAOGetValueFromKey(KEY_CF, dg11);
-
-            var dg1 = eac.ReadDG(DG.DG1);
-            mrz = ICAOGetValueFromKey(KEY_MRZ, dg1);
-
-            birthDate = ICAOGetValueFromKey(KEY_BIRTH_DATE, dg11);
-
-            var dg12 = eac.ReadDG(DG.DG12);
-            string rawDateIssue = ICAOGetValueFromKey(KEY_DATE_ISSUE, dg12);
-            dateIssue = getParsedData(rawDateIssue);
-            string rawDateExpire = ICAOGetValueFromKey(KEY_DATE_EXPIRE, dg12);
-
-            if (mrz != null)
+            //BitmapImageCreator.Register();
+            var por = J2kImage.FromBytes(cie_jpg2k_image);
+            return por.As<Bitmap>();
+        }                           
+        /* Parserizza la stringa contenente una data in fomrato aaaammgg in una con formato gg/mm/aaaa*/
+        static public String getParsedData(String d)
+        {
+            if (d == null)
             {
-                string[] lines = mrz.Split('\n');
-                string rawDate = lines[0].Substring(30, 6);
-                string yearPrefix = rawDate.Substring(0, 2).CompareTo("50") >= 0 ? "19" : "20";
-                birthDate = yearPrefix + rawDate.Substring(0, 2) + "-" + rawDate.Substring(2, 2) + "-" + rawDate.Substring(4, 2);
+                return "";
             }
-
-            if (rawDateExpire == null && mrz != null)
-            {
-                string[] lines = mrz.Split('\n');
-                if (lines.Length > 0 && lines[0].Length >= 43)
-                {
-                    string expiryRaw = lines[0].Substring(38, 6); // YYMMDD
-                    string yearPrefix = expiryRaw.Substring(0, 2).CompareTo("50") >= 0 ? "19" : "20";
-                    //dateExpire = expiryRaw.Substring(0, 2) + "-" + expiryRaw.Substring(2, 2) + "-" + expiryRaw.Substring(4, 2);
-                    dateExpire = expiryRaw.Substring(4,2) + "/" + expiryRaw.Substring(2, 2) + "/" + yearPrefix + expiryRaw.Substring(0,2); 
-                }
-            }
-            else
-            { 
-                dateExpire = getParsedData(rawDateExpire);
-            }
-
-            var dg2 = eac.ReadDG(DG.DG2);
-            cie_jpg2k_image = Image_retrive(dg2);            
-
+            return d.Substring(6, 2) + "/" + d.Substring(4, 2) + "/" + d.Substring(0, 4);
         }
-
-        /*Costruttore vuoto*/
-        public C_CIE() {}
-
-        /*  VARS  */
-        [XmlElement("first-name")]
-        public String firstName;
-        [XmlElement("last-name")]
-        public String lastName;
-        [XmlElement("birth-city")]
-        public String birthCity;
-        [XmlElement("birth-prov")]
-        public String birthProv;
-        [XmlElement("birth-date")]
-        public String birthDate;
-        [XmlElement("address")]
-        public String address;
-        [XmlElement("prov")]
-        public String prov;
-        [XmlElement("cf")]
-        public String cf;
-        [XmlElement("mrz")]
-        public String mrz;
-        [XmlElement("date-issue")]
-        public String dateIssue;
-        [XmlElement("date-expire")]
-        public String dateExpire;
-        [XmlElement("city")]
-        public String city;
-        [XmlElement("photo")]
-        public byte[] cie_jpg2k_image;
-
         public override string ToString()
         {
             return $"First name: {firstName}\n" +
@@ -241,120 +211,5 @@ namespace CIE.MRTD.SDK.PARSERLIB
         {
             return new JavaScriptSerializer().Serialize(this);
         }
-
-        /*Converte l'array di byte codificato in jpeg2000 in una bitmap*/
-        public Bitmap ret_cie_bitmap()
-        {
-            //BitmapImageCreator.Register();
-            var por = J2kImage.FromBytes(cie_jpg2k_image);
-            return por.As<Bitmap>();
-        }
-
-        
-        /* Serializza la classe in un file XML */
-        public void saveOnXML( String path)
-        {
-            XmlSerializer serializer = new XmlSerializer(typeof(C_CIE));
-
-            using (StreamWriter writer = new StreamWriter(path))
-            {
-                serializer.Serialize(writer, this);
-            }
-        }
-
-        /* Deserializza da un file XML*/
-        static public C_CIE readFromXML( String path)
-        {
-            C_CIE cie = null;
-
-            XmlSerializer serializer = new XmlSerializer(typeof(C_CIE));
-
-            if (!File.Exists(path))
-            {
-                return null;
-            }
-
-            StreamReader reader = new StreamReader(path);
-            cie = (C_CIE)serializer.Deserialize(reader);
-            reader.Close();
-
-            return cie;
-        }
-
-        /* Serializza in un file JSon*/
-        public void saveOnJSON(String path)
-        {
-            var json = new JavaScriptSerializer().Serialize(this);
-            System.IO.File.WriteAllText(path, json);
-        }
-
-        /* Deserializza da file JSON*/
-        static public C_CIE readFromJSON(String path)
-        {
-
-            if (!File.Exists(path))
-            {
-                return null;
-            }
-
-            String read = System.IO.File.ReadAllText(path);
-            return new JavaScriptSerializer().Deserialize<C_CIE>(read);// .DeserializeObject(json);
-        }
-
-        /* Serializza in un file CSV */
-        public void saveOnCSV(string dest_file, string separator)
-        {
-            string string2save = firstName + separator + lastName + separator + birthCity + separator + birthProv + separator + address + separator + prov + separator + cf + separator + mrz + separator + dateIssue + separator + city + separator;
-            string2save += Convert.ToBase64String(cie_jpg2k_image);
-            System.IO.File.WriteAllText(dest_file, string2save);
-        }
-
-        /* Dserializza da un file CSV */
-        public static C_CIE readFromCSV(string source_file, string separator)
-        {
-            if (!File.Exists(source_file))
-            {
-                return null;
-            }
-
-            C_CIE tmp = new C_CIE();
-            string source = System.IO.File.ReadAllText(source_file);
-
-            String[] substrings = source.Split(separator.ToCharArray());
-            tmp.firstName = substrings[0];
-            tmp.lastName = substrings[1];
-            tmp.birthCity = substrings[2];
-            tmp.birthProv = substrings[3];
-            tmp.address = substrings[4];
-            tmp.prov = substrings[5];
-            tmp.cf = substrings[6];
-            tmp.mrz = substrings[7];
-            tmp.dateIssue = substrings[8];
-            tmp.city = substrings[9];
-
-            string cie_j = "";
-
-            for (int i = 10; i < substrings.Length; i++)
-            {
-                cie_j += substrings[i];
-            }
-
-            tmp.cie_jpg2k_image = Convert.FromBase64String(cie_j);
-
-            return tmp;
-
-        }
-
-        /* Parserizza la stringa contenente una data in fomrato aaaammgg in una con formato gg/mm/aaaa*/
-        static public String getParsedData(String d)
-        {
-            if (d == null)
-            {
-                return "";
-            }
-            return d.Substring(6, 2) + "/" + d.Substring(4, 2) + "/" + d.Substring(0, 4);
-        }
     }
-
-  
 }

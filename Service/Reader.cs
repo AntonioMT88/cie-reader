@@ -4,6 +4,7 @@ using CIE.MRTD.SDK.PCSC;
 using CieReader.Utils;
 using CieReader.View;
 using PCSC;
+using PCSC.Exceptions;
 using PCSC.Utils;
 using System.Diagnostics;
 
@@ -137,7 +138,7 @@ namespace CieReader.Service
 
             while (true)
             {
-                using var context = contextFactory.Establish(SCardScope.System);
+                var context = contextFactory.Establish(SCardScope.System);
 
                 var readerState = new SCardReaderState
                 {
@@ -149,65 +150,80 @@ namespace CieReader.Service
 
                 while (true)
                 {
-                    var rc = context.GetStatusChange(1000, new[] { readerState });
-
-                    if (rc == SCardError.Success)
+                    try
                     {
-                        if ((readerState.EventState & SCRState.Changed) == SCRState.Changed)
+                        var rc = context.GetStatusChange(1000, new[] { readerState });
+
+                        if (rc == SCardError.Success)
                         {
-                            readerState.CurrentState = readerState.EventState;
-
-                            var readers = context.GetReaders();
-                            Debug.WriteLine("⚠️ Lettori aggiornati:");
-                            if (readers.Length == 0)
+                            if ((readerState.EventState & SCRState.Changed) == SCRState.Changed)
                             {
-                                Debug.WriteLine("  Nessun lettore disponibile.");
-                            }
-                            else
-                            {                                
-                                foreach (var reader in readers)
-                                {
-                                    if (!connectNotificationSent)
-                                    {
-                                        NotificationBalloon.ShowBalloon("Lettore connesso", "Nuovo lettore rilevato!");
-                                        connectNotificationSent = true;
-                                        disconnectNotificationSent = false;
-                                    }
+                                readerState.CurrentState = readerState.EventState;
 
-                                    if (!connectedReader)
+                                var readers = context.GetReaders();
+                                Debug.WriteLine("⚠️ Lettori aggiornati:");
+                                if (readers.Length == 0)
+                                {
+                                    Debug.WriteLine("  Nessun lettore disponibile.");
+                                }
+                                else
+                                {
+                                    foreach (var reader in readers)
                                     {
-                                        connectedReader = true;
-                                        sc.StartMonitoring();
+                                        if (!connectNotificationSent)
+                                        {
+                                            NotificationBalloon.ShowBalloon("Lettore connesso", "Nuovo lettore rilevato!");
+                                            connectNotificationSent = true;
+                                            disconnectNotificationSent = false;
+                                        }
+
+                                        if (!connectedReader)
+                                        {
+                                            connectedReader = true;
+                                            sc.StartMonitoring();
+                                        }
+                                        Debug.WriteLine($"  → {reader}");
                                     }
-                                    Debug.WriteLine($"  → {reader}");
                                 }
                             }
                         }
+                        else if (rc == SCardError.Timeout)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            if (!disconnectNotificationSent)
+                            {
+                                NotificationBalloon.ShowBalloon("Lettore disconnesso", "Il lettore NFC non è più disponibile. Si prega di verificare il collegamento e riprovare!");
+                                disconnectNotificationSent = true;
+                                connectNotificationSent = false;
+                            }
+                            if (connectedReader)
+                            {
+                                connectedReader = false;
+                                sc.StopMonitoring();
+                            }
+
+                            Debug.WriteLine($"❌ Errore irreversibile: {SCardHelper.StringifyError(rc)}");
+                            Debug.WriteLine("🔄 Riavvio del contesto...");
+                            break;
+                        }
+
+                        Thread.Sleep(500);
                     }
-                    else if (rc == SCardError.Timeout)
-                    {                     
-                        continue;
-                    }
-                    else
+                    catch (Exception ex)
                     {
-                        if (!disconnectNotificationSent)
-                        {
-                            NotificationBalloon.ShowBalloon("Lettore disconnesso", "Il lettore NFC non è più disponibile. Si prega di verificare il collegamento e riprovare!");
-                            disconnectNotificationSent = true;
-                            connectNotificationSent= false;
-                        }
-                        if (connectedReader)
-                        {
-                            connectedReader = false;
-                            sc.StopMonitoring();
-                        }
+                        Debug.WriteLine("❌ SCardSvr riavviato, ricreo il contesto...");
 
-                        Debug.WriteLine($"❌ Errore irreversibile: {SCardHelper.StringifyError(rc)}");
-                        Debug.WriteLine("🔄 Riavvio del contesto...");
-                        break; 
+                        NotificationBalloon.ShowBalloon("Lettore disconnesso", "Il lettore NFC non è più disponibile. Si prega di verificare il collegamento e riprovare!");
+                        disconnectNotificationSent = true;
+                        connectNotificationSent = false;
+
+                        context.Dispose();  // chiudi il vecchio contesto
+                        context = contextFactory.Establish(SCardScope.System);  // crea nuovo contesto
+                        readerState.CurrentState = SCRState.Unaware;
                     }
-
-                    Thread.Sleep(500);
                 }
 
                 Thread.Sleep(1000);
