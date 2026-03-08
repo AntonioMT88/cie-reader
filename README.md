@@ -84,6 +84,7 @@ L'applicazione si configura tramite il file `config.json` nella directory dell'e
 ```
 
 ## ⚠️ Limitazioni attuali
+- Testato solo con lettore ACR1252U, potrebbero esserci problemi di compatibilità con altri modelli
 - Potrebbero essere necessarie più letture in caso di lettore NFC poco sensibile
 - Attualmente supporta solo sistemi Windows
 
