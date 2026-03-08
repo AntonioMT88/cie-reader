@@ -115,14 +115,20 @@ socket.on('error', (err) => console.error('⚠️ Errore:', err));
 
 > ⚠️ Sostituisci `localhost`, `8080` e `LA_TUA_API_KEY` con i valori configurati nel tuo `config.json`.
 
+## 🙏 Attribuzioni
+
+Parte della logica di lettura della CIE è derivata e adattata dal progetto [cie-mrtd-example-app](https://github.com/italia/cie-mrtd-example-app) di Developers Italia, distribuito con licenza `BSD 3-Clause`.
+
+Le attribuzioni e il testo completo della licenza del codice di terze parti sono disponibili nel file `THIRD-PARTY-NOTICES.txt`.
+
 ## ⚠️ Limitazioni attuali
 - Testato solo con lettore ACR1252U, potrebbero esserci problemi di compatibilità con altri modelli
 - Potrebbero essere necessarie più letture in caso di lettore NFC poco sensibile
 - Attualmente supporta solo sistemi Windows
 
 ## 📚 Licenza
-Questo progetto è distribuito con licenza GPL-3.0.
-Consulta il file LICENSE per maggiori dettagli.
+Questo progetto è distribuito con licenza `BSD 3-Clause`.
+Consulta il file `LICENSE.txt` per i termini della licenza principale e `THIRD-PARTY-NOTICES.txt` per le attribuzioni e le licenze del codice derivato da terze parti.
 
 ## 🤝 Contribuisci
 Il progetto è un proof-of-concept ma è aperto a suggerimenti, issue e pull request.
