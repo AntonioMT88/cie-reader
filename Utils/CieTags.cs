@@ -14,7 +14,10 @@
         public static readonly byte[] KEY_DOCUMENT_NUMBER = new byte[] { 0x5F, 0x03 };
         public static readonly byte[] KEY_DATE_ISSUE = new byte[] { 0x5F, 0x26 };
         public static readonly byte[] KEY_DATE_EXPIRE = new byte[] { 0x5F, 0x24 };
+        
         public static readonly byte[] KEY_AUTHORITY = new byte[] { 0x5F, 0x28 };
+        public static readonly byte[] KEY_AUTHORITY_ALTERNATIVE = new byte[] { 0x5F, 0x19 };
+
         public static readonly byte[] KEY_MRZ = new byte[] { 0x5F, 0x1F };
     }
 }

@@ -150,6 +150,10 @@ namespace CIE.MRTD.SDK.PARSERLIB
                 string[] lines = Mrz.Split('\n');
                 DocumentNumber = lines[0].Substring(5, 9);
             }
+            if (Authority == null)
+            {
+                Authority = ICAOGetValueFromKey(CieTags.KEY_AUTHORITY_ALTERNATIVE, dg12);
+            }
         }
         /*Estrae i byte dell'immagine jpeg2000 da un array di bytes usando il suo magic_number*/
         private Byte[] ImageRetrieve(Byte[] blob)
