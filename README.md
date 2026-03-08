@@ -83,6 +83,38 @@ L'applicazione si configura tramite il file `config.json` nella directory dell'e
 }
 ```
 
+### 🧪 Client di test (Node.js)
+
+Per testare la connessione WebSocket è possibile utilizzare un semplice client Node.js:
+
+```bash
+npm install ws
+node tuo_path\client.js
+```
+
+```javascript
+import WebSocket from 'ws';
+
+// node client.js
+
+const socket = new WebSocket('ws://localhost:8080', {
+  headers: { 'X-API-Key': 'LA_TUA_API_KEY' }
+});
+
+socket.on('open', () => {
+  console.log('✅ Connesso!');
+});
+
+socket.on('message', (msg) => {
+  console.log('📩 Messaggio:', msg.toString());
+});
+
+socket.on('close', () => console.log('❌ Connessione chiusa'));
+socket.on('error', (err) => console.error('⚠️ Errore:', err));
+```
+
+> ⚠️ Sostituisci `localhost`, `8080` e `LA_TUA_API_KEY` con i valori configurati nel tuo `config.json`.
+
 ## ⚠️ Limitazioni attuali
 - Testato solo con lettore ACR1252U, potrebbero esserci problemi di compatibilità con altri modelli
 - Potrebbero essere necessarie più letture in caso di lettore NFC poco sensibile
