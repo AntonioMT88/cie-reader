@@ -1,11 +1,4 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CieReader.Utils
+﻿namespace CieReader.Utils
 {
     internal class ConfigReader
     {
@@ -18,11 +11,8 @@ namespace CieReader.Utils
         {
             if (File.Exists("config.json"))
             {
-                using (StreamReader r = new StreamReader("config.json"))
-                {
-                    string json = r.ReadToEnd();
-                    Configuration = JsonConvert.DeserializeObject<Configuration>(json);
-                }
+                string configContentJson = File.ReadAllText("config.json");
+                Configuration = System.Text.Json.JsonSerializer.Deserialize<Configuration>(configContentJson) ?? new Configuration();
             }
             else 
             {

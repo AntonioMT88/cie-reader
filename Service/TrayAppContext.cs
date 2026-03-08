@@ -18,16 +18,17 @@ namespace CieReader.Service
                 Icon = new Icon("Resources/icon.ico"),
                 ContextMenuStrip = new ContextMenuStrip(),
                 Visible = true,
-                Text = "NFC Tray App"
+                Text = "CIE Reader"
             };
 
-            // Aggiunge un'opzione "Esci" nel menu                       
-            trayIcon.ContextMenuStrip.Items.Add("Esci", null, OnExit);
+            NotificationBalloon.NotifyIcon = trayIcon;
 
-            // (Facoltativo) Registrati per l'avvio automatico
-            SetStartup(true);
+            // Aggiunge un'opzione "Esci" nel menu                       
+            trayIcon.ContextMenuStrip.Items.Add("Esci", null, OnExit);            
 
             configReader = new ConfigReader();
+
+            SetStartup(configReader.Configuration.AutoStartUp);
 
             webSocketServer = new WebSocketServer(configReader.Configuration.WebSocketConfig);           
 
@@ -42,11 +43,11 @@ namespace CieReader.Service
             Application.Exit();
         }
 
-        protected virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (disposing)
             {                
-                webSocketServer?.StopServer();                
+                webSocketServer?.StopServer().GetAwaiter().GetResult();
                 reader?.StopReaderMonitoring();
                 trayIcon?.Dispose();
             }
@@ -63,10 +64,13 @@ namespace CieReader.Service
             string exePath = Application.ExecutablePath;
             RegistryKey rk = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
 
-            if (enable)
-                rk.SetValue(appName, "\"" + exePath + "\"");
-            else
-                rk.DeleteValue(appName, false);
-        }     
+            if (rk != null)
+            {
+                if (enable)
+                    rk.SetValue(appName, "\"" + exePath + "\"");
+                else
+                    rk.DeleteValue(appName, false);
+            }
+        }       
     }
 }

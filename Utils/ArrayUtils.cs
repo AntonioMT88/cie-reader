@@ -1,21 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CieReader.Utils
+﻿namespace CieReader.Utils
 {
     /* Classe di utilità per manipolazione di array di byte*/
     static class ArrayUtils
     {
         //Esegue lo slice di un array
-        public static T[] SubArray<T>(this T[] data, int index, int length)
-        {
-            T[] result = new T[length];
-            Array.Copy(data, index, result, 0, length);
-            return result;
-        }
+        public static T[] SubArray<T>(this T[] data, int index, int length) => data[index..(index + length)];
 
         //array vuoto
         public static readonly int[] Empty = new int[0];

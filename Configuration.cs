@@ -1,16 +1,13 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text.Json.Serialization;
 
 namespace CieReader
 {
     public class Configuration
     {
-        [JsonProperty("websocket")]
+        [JsonPropertyName("websocket")]
         public WebSocketConfig WebSocketConfig { get; set;}
+        [JsonPropertyName("autoStartUp")]
+        public bool AutoStartUp { get; set; }
 
         public Configuration() {}
        
@@ -18,8 +15,11 @@ namespace CieReader
 
     public class WebSocketConfig
     {
+        [JsonPropertyName("host")]
         public string Host { get; set; }
-        public int Port { get; set; }    
+        [JsonPropertyName("port")]
+        public int Port { get; set; }
+        [JsonPropertyName("wsApiKey")]
         public string WsApiKey { get; set; }
     }
 

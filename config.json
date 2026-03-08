@@ -3,5 +3,6 @@
     "host": "localhost",
     "port": 8080,
     "wsApiKey": "K4kvv72GTpl9VbXPHKFc5R0oo"
-  }
+  },
+  "autoStartUp": true
 }

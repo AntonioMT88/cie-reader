@@ -1,8 +1,6 @@
-﻿using Newtonsoft.Json.Linq;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 
@@ -12,7 +10,8 @@ namespace CieReader.Service
     {
 
         private readonly ConcurrentDictionary<Guid, WebSocket> _connectedSockets = new();
-        private bool _cancelling = false;
+        private readonly CancellationTokenSource _cts = new();
+        private HttpListener? _listener;
         private string apiKey;
 
         public WebSocketServer(WebSocketConfig webSocketConfig)
@@ -22,34 +21,53 @@ namespace CieReader.Service
         }
         public async Task StartServer(string ipAddress, int port)
         {
-            HttpListener listener = new HttpListener();
-            listener.Prefixes.Add($"http://{ipAddress}:{port}/");
-            listener.Start();
-
-            Debug.WriteLine("Server started. Waiting for connections...");
-
-            while (!_cancelling)
+            try
             {
-                HttpListenerContext context = await listener.GetContextAsync();
-                if (context.Request.IsWebSocketRequest)
+                _listener = new HttpListener();
+                _listener.Prefixes.Add($"http://{ipAddress}:{port}/");
+                _listener.Start();
+
+                Debug.WriteLine("Server started. Waiting for connections...");
+
+                while (!_cts.IsCancellationRequested)
                 {
-                    _ = ProcessWebSocketRequest(context);
-                }
-                else
-                {
-                    context.Response.StatusCode = 400;
-                    context.Response.Close();
+                    HttpListenerContext context = await _listener.GetContextAsync();
+                    if (context.Request.IsWebSocketRequest)
+                    {
+                        _ = ProcessWebSocketRequest(context);
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = 400;
+                        context.Response.Close();
+                    }
                 }
             }
+            catch (HttpListenerException) when (_cts.IsCancellationRequested)
+            {
+                Debug.WriteLine("Listener stopped, shutting down.");
+            }
+            catch (ObjectDisposedException) when (_cts.IsCancellationRequested)
+            {
+                Debug.WriteLine("Listener already disposed, shutting down.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WebSocket server error: {ex.Message}");
+            }
         }
-
-        public async void StopServer()
+        public async Task StopServer()
         {
             Debug.WriteLine("Stopping websocket...");
-            _cancelling = true;
+            _cts.Cancel();
+            _listener?.Stop();
+
             foreach (var (id, socket) in _connectedSockets)
             {
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server shutting down", CancellationToken.None);
+                if (socket.State == WebSocketState.Open)
+                {
+                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server shutting down", CancellationToken.None);
+                }
             }
         }
 
@@ -58,7 +76,7 @@ namespace CieReader.Service
             string[] ApiKey = context.Request.Headers.GetValues("X-API-Key");
             HttpListenerWebSocketContext webSocketContext = await context.AcceptWebSocketAsync(null);
             
-            if (ApiKey?.Length != 0 && ApiKey?[0] == apiKey)
+            if (ApiKey != null && ApiKey!.Length != 0 && ApiKey![0] == apiKey)
             {                               
                 WebSocket socket = webSocketContext.WebSocket;
 
@@ -70,7 +88,7 @@ namespace CieReader.Service
                 {
                     while (socket.State == WebSocketState.Open)
                     {
-                        WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
                         if (result.MessageType == WebSocketMessageType.Text)
                         {
                             string receivedMessage = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
