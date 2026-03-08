@@ -4,36 +4,58 @@
 
 # CieReader
 
-**CieReader** è un'applicazione desktop (proof-of-concept) per Windows che consente di leggere i dati anagrafici dalla **CIE – Carta d’identità elettronica** tramite un lettore **NFC compatibile**.  
-L’obiettivo principale è **semplificare e velocizzare l’inserimento anagrafico** in contesti digitali, come ad esempio gestionali o sistemi CRM.
+**CieReader** è un'applicazione desktop (proof-of-concept) per Windows che consente di leggere i dati anagrafici dalla **CIE – Carta d'identità elettronica** tramite un lettore **NFC compatibile**.  
+L'obiettivo principale è **semplificare e velocizzare l'inserimento anagrafico** in contesti digitali, come ad esempio gestionali o sistemi CRM.
 
 ## 🧩 Caratteristiche
 
-- Lettura dati da CIE v2.x (testato)
-- Supporta lettori compatibili con PC/SC e protocolli NFC (PACE, BAC, EAC)
-- Comunicazione via WebSocket in `localhost` per integrazione con client (es. WebApp)
-- Nessuna interfaccia grafica, funziona in background
-- Estrazione dati dai Data Group (DG1, DG2, DG11) e fallback da MRZ
+- Lettura dati dalla CIE
+- Supporta lettori compatibili con PC/SC e protocolli NFC (PACE, EAC)
+- Comunicazione via WebSocket per integrazione con client (es. WebApp)
+- Autenticazione delle connessioni WebSocket tramite API key (header `X-API-Key`)
+- Nessuna interfaccia grafica, funziona in background come tray application
+- Estrazione dati dai Data Group (DG1, DG2, DG11, DG12, DG14, SOD) e fallback da MRZ
 - Invio dati in formato JSON ai client WebSocket con supporto multi-connessione
 
 ## 🛠️ Requisiti
 
 - **Sistema operativo:** Windows
 - **Lettore NFC testato:** [ACR1252U](https://www.acs.com.hk/en/products/173/acr1252u-usb-nfc-reader/)
-- .NET 6 o superiore
+- .NET 10 o superiore
 - Lettore compatibile con standard ISO/IEC 14443 (tipo A/B) e APDU
-- Connessione alla porta `localhost:8080` (attualmente hardcoded)
 
 ## 📦 Tecnologie e dipendenze
 
-- .NET (console application)
+- .NET (Windows Forms tray application)
 - WebSocket server integrato
-- Basato su [cie-mrtd-example-app](https://github.com/italia/cie-mrtd-example-app) per l’accesso sicuro ai dati tramite protocollo PACE
+- Basato su [cie-mrtd-example-app](https://github.com/italia/cie-mrtd-example-app) per l'accesso sicuro ai dati tramite protocollo PACE
+
+## ⚙️ Configurazione
+
+L'applicazione si configura tramite il file `config.json` nella directory dell'eseguibile:
+
+```json
+{
+  "websocket": {
+    "host": "localhost",
+    "port": 8080,
+    "wsApiKey": "LA_TUA_API_KEY"
+  },
+  "autoStartUp": true
+}
+```
+
+| Parametro | Descrizione |
+|---|---|
+| `host` | Indirizzo su cui il server WebSocket si mette in ascolto |
+| `port` | Porta del server WebSocket |
+| `wsApiKey` | API key richiesta ai client per autenticarsi (header `X-API-Key`) |
+| `autoStartUp` | Se `true`, l'applicazione viene registrata per l'avvio automatico con Windows |
 
 ## 🚀 Come funziona
 
-1. Avvia l’applicazione 
-2. Il programma si avvia in background e apre una WebSocket in ascolto su `localhost:8080`
+1. Avvia l'applicazione
+2. Il programma si avvia in background e apre una WebSocket in ascolto sull'indirizzo e porta configurati in `config.json`
 3. In caso di presenza di un lettore NFC compatibile, viene tentata la lettura della CIE
 4. I dati estratti (come nome, cognome, data di nascita, codice fiscale, indirizzo...) vengono inviati al client connesso via WebSocket
 
@@ -41,26 +63,27 @@ L’obiettivo principale è **semplificare e velocizzare l’inserimento anagraf
 
 ```json
 {
-   "firstName":"MARIO",
-   "lastName":"ROSSI",
-   "birthCity":"MATERA",
-   "birthProv":"MT",
-   "birthDate":"YYYY-MM-DD",
-   "address":"INDIRIZZO, N_CIVICO",
-   "prov":"MT",
-   "cf":"COD_FISC",
-   "mrz":"MRZ",
-   "dateIssue":"DD/MM/YYYY",
-   "dateExpire":"DD/MM/YYYY",
-   "city":"MATERA",
-   "cie_jpg2k_image":[...]
+   "firstName": "MARIO",
+   "lastName": "ROSSI",
+   "birthCity": "MATERA",
+   "birthProv": "MT",
+   "birthDate": "DD/MM/YYYY",
+   "address": "INDIRIZZO, N_CIVICO",
+   "prov": "MT",
+   "cf": "COD_FISC",
+   "mrz": "MRZ",
+   "dateIssue": "DD/MM/YYYY",
+   "dateExpire": "DD/MM/YYYY",
+   "sex": "M",
+   "city": "MATERA",
+   "nationality": "ITA",
+   "documentNumber": "CA00000AA",
+   "authority": "COMUNE DI MATERA",
+   "photo": "BASE64..."
 }
 ```
 
 ## ⚠️ Limitazioni attuali
-- Testato solo CIE versione 2.x
-- Nessuna autenticazione per le connessioni WebSocket
-- Parametri come porta e host della WebSocket sono hardcoded
 - Potrebbero essere necessarie più letture in caso di lettore NFC poco sensibile
 - Attualmente supporta solo sistemi Windows
 
